@@ -205,10 +205,56 @@
                                 </div>
                                 @auth
                                     @if($userHasActiveLoan)
-                                    <button disabled class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-yellow-500 text-white rounded-lg cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm sm:text-base" title="Anda sudah meminjam buku ini">
-                                        <i class="fas fa-check-circle"></i>
-                                        Sudah Dipinjam
-                                    </button>
+                                        @php
+                                            $loanStatus = $userActiveLoan?->getActualStatus() ?? $userActiveLoan?->status;
+                                        @endphp
+
+                                        @if($loanStatus === \App\Models\Loan::STATUS_MENUNGGU_PENGEMBALIAN)
+                                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                                            <button disabled class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-yellow-500 text-white rounded-lg cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm sm:text-base shadow-sm" title="Anda sedang meminjam buku ini">
+                                                <i class="fas fa-check-circle"></i>
+                                                Sudah Dipinjam
+                                            </button>
+                                            @if($userActiveLoan && $userActiveLoan->isReturnBarcodeValid())
+                                            <button type="button" class="w-full sm:w-auto px-5 py-3 bg-purple-100 hover:bg-purple-200 text-purple-700 font-semibold text-sm sm:text-base rounded-lg transition-colors flex items-center justify-center gap-2 border border-purple-200 shadow-sm cursor-pointer"
+                                                data-type="return"
+                                                data-id="{{ $userActiveLoan->id }}"
+                                                data-token="{{ $userActiveLoan->return_barcode }}"
+                                                data-remaining="{{ $userActiveLoan->getReturnBarcodeRemainingSeconds() }}"
+                                                data-title="{{ $book->title }}"
+                                                onclick="openLoanBarcodeModal(this)"
+                                                title="Tampilkan barcode pengembalian buku">
+                                                <i class="fas fa-qrcode"></i>
+                                                Lihat Barcode
+                                            </button>
+                                            @endif
+                                        </div>
+                                        @elseif($loanStatus === \App\Models\Loan::STATUS_MENUNGGU_KONFIRMASI)
+                                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                                            <button disabled class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-yellow-500 text-white rounded-lg cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm sm:text-base shadow-sm" title="Pengajuan peminjaman sedang diproses">
+                                                <i class="fas fa-clock"></i>
+                                                Menunggu Konfirmasi
+                                            </button>
+                                            @if($userActiveLoan && $userActiveLoan->isLoanBarcodeValid())
+                                            <button type="button" class="w-full sm:w-auto px-5 py-3 bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold text-sm sm:text-base rounded-lg transition-colors flex items-center justify-center gap-2 border border-blue-200 shadow-sm cursor-pointer"
+                                                data-type="loan"
+                                                data-id="{{ $userActiveLoan->id }}"
+                                                data-token="{{ $userActiveLoan->loan_barcode }}"
+                                                data-remaining="{{ $userActiveLoan->getLoanBarcodeRemainingSeconds() }}"
+                                                data-title="{{ $book->title }}"
+                                                onclick="openLoanBarcodeModal(this)"
+                                                title="Tampilkan barcode peminjaman buku">
+                                                <i class="fas fa-qrcode"></i>
+                                                Lihat Barcode
+                                            </button>
+                                            @endif
+                                        </div>
+                                        @else
+                                        <button disabled class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-yellow-500 text-white rounded-lg cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm sm:text-base shadow-sm" title="Anda sedang meminjam buku ini">
+                                            <i class="fas fa-check-circle"></i>
+                                            Sudah Dipinjam
+                                        </button>
+                                        @endif
                                     @elseif($book->stock > 0)
                                     <button onclick="showBorrowModal()" class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-library-primary text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-semibold text-sm sm:text-base">
                                         <i class="fas fa-hand-holding"></i>
@@ -239,12 +285,18 @@
                         </div>
                         @endif
 
-                        <!-- Back Button -->
-                        <div class="flex justify-start">
+                        <!-- Navigation Buttons -->
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 border-t border-gray-100">
                             <a href="{{ route('books.collection') }}" class="text-library-primary font-semibold hover:underline flex items-center gap-2">
                                 <i class="fas fa-arrow-left"></i>
                                 Kembali ke Koleksi
                             </a>
+                            @if($userHasActiveLoan)
+                            <a href="{{ route('my-loans') }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-semibold transition-colors border border-blue-200 shadow-sm">
+                                <i class="fas fa-history text-blue-600"></i>
+                                Lihat Semua Riwayat Pinjaman
+                            </a>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -252,6 +304,7 @@
         </div>
     </section>
 
+    @if(!$userHasActiveLoan && $book->stock > 0)
     <!-- Borrow Modal -->
     <div id="borrowModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
         <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4 transform transition-all">
@@ -308,18 +361,25 @@
             </div>
         </div>
     </div>
+    @endif
+
+    <x-barcode-modal />
 
     @include('components.footer')
 
     <script>
         function showBorrowModal() {
-            document.getElementById('borrowModal').classList.remove('hidden');
-            document.getElementById('borrowModal').classList.add('flex');
+            const modal = document.getElementById('borrowModal');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
 
         function closeBorrowModal() {
-            document.getElementById('borrowModal').classList.add('hidden');
-            document.getElementById('borrowModal').classList.remove('flex');
+            const modal = document.getElementById('borrowModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         }
 
         function updateDueDate(days) {
@@ -328,15 +388,19 @@
             const year = dueDate.getFullYear();
             const month = String(dueDate.getMonth() + 1).padStart(2, '0');
             const date = String(dueDate.getDate()).padStart(2, '0');
-            document.getElementById('dueDateInput').value = `${year}-${month}-${date}`;
+            const input = document.getElementById('dueDateInput');
+            if (input) input.value = `${year}-${month}-${date}`;
         }
 
         // Close modal when clicking outside
-        document.getElementById('borrowModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeBorrowModal();
-            }
-        });
+        const borrowModalEl = document.getElementById('borrowModal');
+        if (borrowModalEl) {
+            borrowModalEl.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeBorrowModal();
+                }
+            });
+        }
     </script>
 </body>
 </html>

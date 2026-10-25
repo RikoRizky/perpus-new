@@ -34,6 +34,7 @@ Route::middleware('prevent.staff')->group(function () {
         Route::post('/loans/{loan}/request-return', [LoanController::class, 'requestReturn'])->name('loans.request-return');
         Route::post('/loans/{loan}/cancel', [LoanController::class, 'cancelLoan'])->name('loans.cancel');
         Route::post('/loans/{loan}/cancel-return', [LoanController::class, 'cancelReturn'])->name('loans.cancel-return');
+        Route::get('/loans/{loan}/barcode-svg/{type}', [LoanController::class, 'barcodeSvg'])->name('loans.barcode-svg');
 
         // Profile & Biodata Routes
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile');

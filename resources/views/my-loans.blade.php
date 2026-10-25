@@ -278,7 +278,13 @@
                                             <div class="flex items-center justify-center gap-2 flex-wrap">
                                                 {{-- Show barcode loan --}}
                                                 @if($status === 'menunggu_konfirmasi' && $loan->isLoanBarcodeValid())
-                                                    <button class="btn-barcode show" onclick="showBarcodeModal('loan', {{ $loan->id }}, '{{ $loan->loan_barcode }}', {{ $loan->getLoanBarcodeRemainingSeconds() }}, '{{ $loan->book->title }}')">
+                                                    <button type="button" class="btn-barcode show"
+                                                        data-type="loan"
+                                                        data-id="{{ $loan->id }}"
+                                                        data-token="{{ $loan->loan_barcode }}"
+                                                        data-remaining="{{ $loan->getLoanBarcodeRemainingSeconds() }}"
+                                                        data-title="{{ $loan->book->title }}"
+                                                        onclick="openLoanBarcodeModal(this)">
                                                         <i class="fas fa-qrcode"></i> Lihat Barcode
                                                     </button>
                                                     <form method="POST" action="{{ route('loans.cancel', $loan) }}" style="display:inline" data-confirm="Batalkan pengajuan peminjaman untuk buku '{{ $loan->book->title }}'? Stok buku akan dikembalikan." data-confirm-title="Batalkan Peminjaman" data-confirm-btn="Ya, Batalkan">
@@ -291,7 +297,13 @@
 
                                                 {{-- Show barcode return --}}
                                                 @if($status === 'menunggu_pengembalian' && $loan->isReturnBarcodeValid())
-                                                    <button class="btn-barcode show" onclick="showBarcodeModal('return', {{ $loan->id }}, '{{ $loan->return_barcode }}', {{ $loan->getReturnBarcodeRemainingSeconds() }}, '{{ $loan->book->title }}')">
+                                                    <button type="button" class="btn-barcode show"
+                                                        data-type="return"
+                                                        data-id="{{ $loan->id }}"
+                                                        data-token="{{ $loan->return_barcode }}"
+                                                        data-remaining="{{ $loan->getReturnBarcodeRemainingSeconds() }}"
+                                                        data-title="{{ $loan->book->title }}"
+                                                        onclick="openLoanBarcodeModal(this)">
                                                         <i class="fas fa-qrcode"></i> Lihat Barcode Kembali
                                                     </button>
                                                     <form method="POST" action="{{ route('loans.cancel-return', $loan) }}" style="display:inline">
@@ -385,12 +397,24 @@
                                 <!-- Action Buttons Mobile -->
                                 <div class="flex flex-wrap gap-2">
                                     @if($status === 'menunggu_konfirmasi' && $loan->isLoanBarcodeValid())
-                                        <button class="btn-barcode show flex-1" onclick="showBarcodeModal('loan', {{ $loan->id }}, '{{ $loan->loan_barcode }}', {{ $loan->getLoanBarcodeRemainingSeconds() }}, '{{ $loan->book->title }}')">
+                                        <button type="button" class="btn-barcode show flex-1"
+                                            data-type="loan"
+                                            data-id="{{ $loan->id }}"
+                                            data-token="{{ $loan->loan_barcode }}"
+                                            data-remaining="{{ $loan->getLoanBarcodeRemainingSeconds() }}"
+                                            data-title="{{ $loan->book->title }}"
+                                            onclick="openLoanBarcodeModal(this)">
                                             <i class="fas fa-qrcode"></i> Lihat Barcode
                                         </button>
                                     @endif
                                     @if($status === 'menunggu_pengembalian' && $loan->isReturnBarcodeValid())
-                                        <button class="btn-barcode show flex-1" onclick="showBarcodeModal('return', {{ $loan->id }}, '{{ $loan->return_barcode }}', {{ $loan->getReturnBarcodeRemainingSeconds() }}, '{{ $loan->book->title }}')">
+                                        <button type="button" class="btn-barcode show flex-1"
+                                            data-type="return"
+                                            data-id="{{ $loan->id }}"
+                                            data-token="{{ $loan->return_barcode }}"
+                                            data-remaining="{{ $loan->getReturnBarcodeRemainingSeconds() }}"
+                                            data-title="{{ $loan->book->title }}"
+                                            onclick="openLoanBarcodeModal(this)">
                                             <i class="fas fa-qrcode"></i> Lihat Barcode Kembali
                                         </button>
                                     @endif
@@ -449,130 +473,9 @@
 
     @include('components.footer')
 
-    <!-- ══ BARCODE MODAL ══ -->
-    <div id="barcode-modal-overlay" class="barcode-modal-overlay" style="display:none" onclick="closeBarcodeModal(event)">
-        <div class="barcode-modal" onclick="event.stopPropagation()">
-            <!-- Header -->
-            <div class="barcode-modal-header">
-                <div class="barcode-modal-icon" id="modal-icon">🔖</div>
-                <h2 class="text-xl font-bold text-gray-900 mb-1" id="modal-title">Barcode Peminjaman</h2>
-                <p class="text-sm text-gray-500" id="modal-subtitle">Tunjukkan kepada petugas perpustakaan</p>
-            </div>
-
-            <!-- QR Code Display -->
-            <div class="barcode-qr-wrap">
-                <div id="modal-qr-container">
-                    <!-- QR code will be rendered here -->
-                </div>
-                <div class="token-display" id="modal-token-display"></div>
-            </div>
-
-            <!-- Countdown -->
-            <div class="countdown-wrap" id="modal-countdown-wrap">
-                <i class="fas fa-clock" style="color:#92400e"></i>
-                <div>
-                    <div style="font-size:0.7rem; color:#92400e; font-weight:600">MASA BERLAKU</div>
-                    <div class="countdown-time" id="modal-countdown">00:00:00</div>
-                </div>
-            </div>
-
-            <!-- Book name -->
-            <div class="bg-gray-50 rounded-xl p-3 mb-4">
-                <p class="text-xs text-gray-500 mb-1"><i class="fas fa-book"></i> Buku:</p>
-                <p class="font-semibold text-gray-800 text-sm" id="modal-book-name"></p>
-            </div>
-
-            <!-- Warning -->
-            <p class="text-xs text-gray-400 mb-4">
-                <i class="fas fa-exclamation-triangle text-amber-400"></i>
-                Barcode ini hanya bisa di-scan <strong>satu kali</strong> dan akan hangus setelah masa berlaku habis.
-            </p>
-
-            <!-- Close -->
-            <button onclick="closeBarcodeModal()" class="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition text-sm">
-                Tutup
-            </button>
-        </div>
-    </div>
+    <x-barcode-modal />
 
     <script>
-    // ── BARCODE MODAL ──
-    let countdownInterval = null;
-    let currentSeconds   = 0;
-
-    function showBarcodeModal(type, loanId, token, remainingSeconds, bookTitle) {
-        const isLoan  = type === 'loan';
-        const overlay = document.getElementById('barcode-modal-overlay');
-        const icon    = document.getElementById('modal-icon');
-        const title   = document.getElementById('modal-title');
-        const subtitle = document.getElementById('modal-subtitle');
-        const tokenEl  = document.getElementById('modal-token-display');
-        const bookEl   = document.getElementById('modal-book-name');
-
-        icon.className = 'barcode-modal-icon ' + (isLoan ? 'loan' : 'return');
-        icon.textContent = isLoan ? '📦' : '🔄';
-        title.textContent = isLoan ? 'Barcode Peminjaman' : 'Barcode Pengembalian';
-        subtitle.textContent = isLoan
-            ? 'Tunjukkan kepada petugas untuk mengambil buku'
-            : 'Tunjukkan kepada petugas untuk mengembalikan buku';
-        tokenEl.textContent = token;
-        bookEl.textContent  = bookTitle;
-
-        // Generate QR Code using Google Charts API
-        const qrContainer = document.getElementById('modal-qr-container');
-        const qrSize = 200;
-        const qrUrl  = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(token)}&format=png&margin=2`;
-        qrContainer.innerHTML = `<img src="${qrUrl}" alt="QR Code" style="border-radius:8px; width:${qrSize}px; height:${qrSize}px">`;
-
-        // Start countdown
-        currentSeconds = remainingSeconds;
-        updateCountdown();
-        clearInterval(countdownInterval);
-        countdownInterval = setInterval(() => {
-            currentSeconds--;
-            if (currentSeconds <= 0) {
-                currentSeconds = 0;
-                clearInterval(countdownInterval);
-                // Mark as expired
-                document.getElementById('modal-countdown-wrap').classList.add('expired');
-                document.getElementById('modal-countdown').textContent = 'HANGUS';
-            }
-            updateCountdown();
-        }, 1000);
-
-        overlay.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-    }
-
-    function updateCountdown() {
-        if (currentSeconds <= 0) return;
-        const h = Math.floor(currentSeconds / 3600);
-        const m = Math.floor((currentSeconds % 3600) / 60);
-        const s = currentSeconds % 60;
-        const timeStr = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
-        document.getElementById('modal-countdown').textContent = timeStr;
-
-        const wrap = document.getElementById('modal-countdown-wrap');
-        if (currentSeconds < 300) { // < 5 min: red warning
-            wrap.style.background = 'linear-gradient(135deg, #fee2e2, #fecaca)';
-            document.getElementById('modal-countdown').style.color = '#991b1b';
-        }
-    }
-
-    function closeBarcodeModal(event) {
-        if (event && event.target !== document.getElementById('barcode-modal-overlay')) return;
-        clearInterval(countdownInterval);
-        document.getElementById('barcode-modal-overlay').style.display = 'none';
-        document.body.style.overflow = '';
-        document.getElementById('modal-countdown-wrap').classList.remove('expired');
-        document.getElementById('modal-countdown-wrap').style.background = '';
-        document.getElementById('modal-countdown').style.color = '';
-    }
-
-    // Close on Escape
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeBarcodeModal();
-    });
 
     // ── COUNTDOWN IN TABLE (live ticking) ──
     function tickTableCountdowns() {

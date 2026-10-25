@@ -36,7 +36,11 @@ class DashboardController extends Controller
             $newStatus = ($loan->due_date && $loan->due_date->isBefore(today()))
                 ? Loan::STATUS_TERLAMBAT
                 : Loan::STATUS_PEMINJAMAN;
-            $loan->update(['status' => $newStatus]);
+            $loan->update([
+                'status'                    => $newStatus,
+                'return_barcode'            => null,
+                'return_barcode_expires_at' => null,
+            ]);
         }
 
         // 3. Auto-update peminjaman aktif yang sudah melewati jatuh tempo menjadi terlambat
@@ -53,7 +57,7 @@ class DashboardController extends Controller
         // Get counts for stat cards
         $totalBooks = Book::count();
         $totalUsers = User::count();
-        $activeLoans = Loan::where('status', Loan::STATUS_PEMINJAMAN)->whereNull('return_date')->count();
+        $activeLoans = Loan::whereIn('status', [Loan::STATUS_PEMINJAMAN, Loan::STATUS_MENUNGGU_PENGEMBALIAN])->whereNull('return_date')->count();
         $overdueLoans = Loan::where('status', Loan::STATUS_TERLAMBAT)->whereNull('return_date')->count();
 
         // Get recent loans (latest 5) - diurutkan berdasarkan updated_at agar data terbaru muncul di atas

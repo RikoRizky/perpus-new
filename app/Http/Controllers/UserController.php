@@ -139,7 +139,7 @@ class UserController extends Controller
 
             $loanStats = [
                 'total'    => $user->loans->count(),
-                'active'   => $user->loans->filter(fn($l) => $l->getActualStatus() === 'peminjaman')->count(),
+                'active'   => $user->loans->filter(fn($l) => in_array($l->getActualStatus(), ['peminjaman', 'menunggu_pengembalian']))->count(),
                 'returned' => $user->loans->filter(fn($l) => $l->getActualStatus() === 'dikembalikan')->count(),
                 'overdue'  => $user->loans->filter(fn($l) => $l->getActualStatus() === 'terlambat')->count(),
             ];

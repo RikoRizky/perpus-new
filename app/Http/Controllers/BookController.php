@@ -170,16 +170,20 @@ class BookController extends Controller
      */
     public function publicShow(Book $book)
     {
-        $userHasActiveLoan = null;
+        $userActiveLoan = null;
+        $userHasActiveLoan = false;
 
         if (Auth::check()) {
-            $userHasActiveLoan = Loan::where('user_id', Auth::id())
+            $userActiveLoan = Loan::where('user_id', Auth::id())
                 ->where('book_id', $book->id)
-                ->whereIn('status', ['peminjaman', 'terlambat'])
-                ->exists();
+                ->whereIn('status', Loan::activeStatuses())
+                ->latest()
+                ->first();
+
+            $userHasActiveLoan = $userActiveLoan !== null;
         }
 
-        return view('books.show', compact('book', 'userHasActiveLoan'));
+        return view('books.show', compact('book', 'userHasActiveLoan', 'userActiveLoan'));
     }
 
     /**

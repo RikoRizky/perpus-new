@@ -21,6 +21,28 @@ class Loan extends Model
     // Barcode expiry duration (hours)
     const BARCODE_EXPIRY_HOURS = 2;
 
+    /**
+     * Active loan status constants.
+     * Represents loans where the visitor still holds the book or is pending barcode scan.
+     */
+    public static function activeStatuses(): array
+    {
+        return [
+            self::STATUS_MENUNGGU_KONFIRMASI,
+            self::STATUS_PEMINJAMAN,
+            self::STATUS_TERLAMBAT,
+            self::STATUS_MENUNGGU_PENGEMBALIAN,
+        ];
+    }
+
+    /**
+     * Check if the loan is currently active (unreturned / in progress).
+     */
+    public function isActive(): bool
+    {
+        return in_array($this->status, self::activeStatuses());
+    }
+
     protected $fillable = [
         'user_id',
         'book_id',
@@ -150,6 +172,38 @@ class Loan extends Model
         return max(0, now()->diffInSeconds($this->return_barcode_expires_at, false));
     }
 
+    /**
+     * Generate pure SVG string for loan barcode
+     */
+    public function getLoanQrCodeSvg(int $size = 200): string
+    {
+        if (!$this->loan_barcode) return '';
+        try {
+            return (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')
+                ->size($size)
+                ->errorCorrection('H')
+                ->generate($this->loan_barcode);
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
+    /**
+     * Generate pure SVG string for return barcode
+     */
+    public function getReturnQrCodeSvg(int $size = 200): string
+    {
+        if (!$this->return_barcode) return '';
+        try {
+            return (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')
+                ->size($size)
+                ->errorCorrection('H')
+                ->generate($this->return_barcode);
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
     // =========================================================================
     // STATUS LOGIC
     // =========================================================================
@@ -208,11 +262,16 @@ class Loan extends Model
         }
 
         if ($this->status === self::STATUS_MENUNGGU_PENGEMBALIAN) {
+            if ($this->return_barcode_expires_at && now()->isAfter($this->return_barcode_expires_at)) {
+                return ($this->due_date && $this->due_date->isBefore(today()))
+                    ? self::STATUS_TERLAMBAT
+                    : self::STATUS_PEMINJAMAN;
+            }
             return self::STATUS_MENUNGGU_PENGEMBALIAN;
         }
 
         // Active loan: check overdue
-        if ($this->due_date->isBefore(today())) {
+        if ($this->due_date && $this->due_date->isBefore(today())) {
             return self::STATUS_TERLAMBAT;
         }
 

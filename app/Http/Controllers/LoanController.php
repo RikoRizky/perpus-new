@@ -28,8 +28,8 @@ class LoanController extends Controller
         // Get UNFILTERED counts for stats cards
         $allLoans = Loan::all();
         $stats = [
-            'menunggu'   => $allLoans->filter(fn($l) => $l->getActualStatus() === 'menunggu_konfirmasi')->count(),
-            'active'     => $allLoans->filter(fn($l) => $l->getActualStatus() === 'peminjaman')->count(),
+            'menunggu'   => $allLoans->filter(fn($l) => in_array($l->getActualStatus(), ['menunggu_konfirmasi', 'menunggu_pengembalian']))->count(),
+            'active'     => $allLoans->filter(fn($l) => in_array($l->getActualStatus(), ['peminjaman', 'menunggu_pengembalian']))->count(),
             'overdue'    => $allLoans->filter(fn($l) => $l->getActualStatus() === 'terlambat')->count(),
             'returned'   => $allLoans->filter(fn($l) => $l->getActualStatus() === 'dikembalikan')->count(),
         ];
@@ -112,12 +112,7 @@ class LoanController extends Controller
         // Check if user already has an active loan for this book
         $existingLoan = Loan::where('user_id', $validated['user_id'])
             ->where('book_id', $validated['book_id'])
-            ->whereIn('status', [
-                Loan::STATUS_MENUNGGU_KONFIRMASI,
-                Loan::STATUS_PEMINJAMAN,
-                Loan::STATUS_TERLAMBAT,
-                Loan::STATUS_MENUNGGU_PENGEMBALIAN,
-            ])
+            ->whereIn('status', Loan::activeStatuses())
             ->first();
 
         if ($existingLoan) {
@@ -166,16 +161,16 @@ class LoanController extends Controller
         // Check if user already has this book borrowed/pending
         $existingLoan = Loan::where('user_id', Auth::id())
             ->where('book_id', $validated['book_id'])
-            ->whereIn('status', [
-                Loan::STATUS_MENUNGGU_KONFIRMASI,
-                Loan::STATUS_PEMINJAMAN,
-                Loan::STATUS_TERLAMBAT,
-                Loan::STATUS_MENUNGGU_PENGEMBALIAN,
-            ])
+            ->whereIn('status', Loan::activeStatuses())
             ->first();
 
         if ($existingLoan) {
-            return back()->withErrors(['book_id' => 'Anda sudah meminjam atau mengajukan pinjam buku ini']);
+            $msg = match($existingLoan->status) {
+                Loan::STATUS_MENUNGGU_PENGEMBALIAN => 'Buku ini sedang dalam proses pengembalian. Silakan selesaikan pengembalian dengan scan barcode ke petugas sebelum meminjam kembali.',
+                Loan::STATUS_MENUNGGU_KONFIRMASI  => 'Anda sudah memiliki pengajuan peminjaman untuk buku ini yang menunggu konfirmasi barcode.',
+                default                           => 'Anda masih meminjam buku ini. Harap kembalikan dan scan barcode ke petugas sebelum meminjam kembali.',
+            };
+            return back()->withErrors(['book_id' => $msg]);
         }
 
         // Create the loan with status "menunggu_konfirmasi"
@@ -356,14 +351,7 @@ class LoanController extends Controller
     public function adminDestroy(Loan $loan)
     {
         // Restore stock if loan was still active (not returned, not expired)
-        $activeStatuses = [
-            Loan::STATUS_MENUNGGU_KONFIRMASI,
-            Loan::STATUS_PEMINJAMAN,
-            Loan::STATUS_TERLAMBAT,
-            Loan::STATUS_MENUNGGU_PENGEMBALIAN,
-        ];
-
-        if (in_array($loan->status, $activeStatuses)) {
+        if (in_array($loan->status, Loan::activeStatuses())) {
             $loan->book->increment('stock');
         }
 
@@ -410,5 +398,23 @@ class LoanController extends Controller
                 'return_barcode_expires_at' => null,
             ]);
         }
+    }
+
+    /**
+     * Return pure SVG response for loan or return barcode
+     */
+    public function barcodeSvg(Loan $loan, string $type)
+    {
+        if ($loan->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $svg = $type === 'loan' ? $loan->getLoanQrCodeSvg(200) : $loan->getReturnQrCodeSvg(200);
+
+        if (!$svg) {
+            abort(404);
+        }
+
+        return response($svg, 200)->header('Content-Type', 'image/svg+xml');
     }
 }
