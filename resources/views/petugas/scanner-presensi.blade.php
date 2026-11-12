@@ -16,6 +16,7 @@
                 <p class="text-xs text-slate-500">Seluruh anggota yang telah melakukan check-in pada hari ini</p>
             </div>
         </div>
+        
         <div>
             <a href="{{ route('petugas.dashboard') }}"
                class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5">
